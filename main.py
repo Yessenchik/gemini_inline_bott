@@ -94,7 +94,36 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # === НАСТРОЙКА Gemini ===
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+
+def pick_gemini_model():
+    try:
+        models = list(genai.list_models())
+        supported = [m.name for m in models if 'generateContent' in getattr(m, 'supported_generation_methods', [])]
+        preferred = [
+            'models/gemini-1.5-flash-latest',
+            'models/gemini-1.5-flash',
+            'models/gemini-1.5-flash-8b',
+            'models/gemini-1.5-pro-latest',
+            'models/gemini-1.5-pro',
+        ]
+        for p in preferred:
+            if p in supported:
+                return p
+        # tolerate bare names without the 'models/' prefix
+        bare_supported = {n.split('/')[-1]: n for n in supported}
+        for p in [s.split('/')[-1] for s in preferred]:
+            if p in bare_supported:
+                return bare_supported[p]
+        if supported:
+            return supported[0]
+    except Exception:
+        pass
+    # offline/default fallback
+    return 'gemini-1.5-flash-latest'
+
+MODEL_NAME = pick_gemini_model()
+print(f"🤖 Using Gemini model: {MODEL_NAME}")
+model = genai.GenerativeModel(MODEL_NAME)
 
 # Инструкция для Gemini о формате ответа
 FORMAT_POLICY = (
@@ -244,5 +273,6 @@ def clear_history(message):
         user_state[chat_id]["history"] = []
     bot.reply_to(message, "🧹 История очищена.")
 
-print("✅ Бот запущен")
+print("✅ Bot run:")
+bot.remove_webhook()
 bot.infinity_polling(skip_pending=True, allowed_updates=['message', 'inline_query'])
